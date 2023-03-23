@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "arm_math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,7 +43,38 @@
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+float32_t A_f32[16] = {
+		1, 2, 3, 4,
+		5, 6, 7, 8,
+		9, 10, 11, 12,
+		13, 14, 15, 16,
+};
+arm_matrix_instance_f32 A;
 
+float32_t B_f32[4] = {
+		1,
+		2,
+		3,
+		4,
+};
+arm_matrix_instance_f32 B;
+
+float32_t At_f32[16];
+arm_matrix_instance_f32 At;
+
+float32_t AtmA_f32[16];
+arm_matrix_instance_f32 AtmA;
+
+float32_t AaB_f32[16];
+arm_matrix_instance_f32 AaB;
+
+volatile arm_status CalcSt;
+
+
+arm_pid_instance_f32 PID = {0};
+float position = 0;
+float setposition = 0;
+float Vfeedback = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -51,7 +82,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+float PlantSimulation(float VIn);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -90,6 +121,16 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  arm_mat_init_f32(&A, 4, 4, (float32_t*) &A_f32);
+  arm_mat_init_f32(&At, 4, 4, (float32_t*) &At_f32);
+  arm_mat_init_f32(&AtmA, 4, 4, (float32_t*) &AtmA_f32);
+  arm_mat_init_f32(&B, 4, 4, (float32_t*) &B_f32);
+  arm_mat_init_f32(&AaB, 4, 4, (float32_t*) &AaB_f32);
+
+  PID.Kp = 0.1;
+  PID.Ki = 0.00001;
+  PID.Kd = 0.1;
+  arm_pid_init_f32(&PID, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -99,6 +140,26 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+//	  static GPIO_PinState B1[2];
+//	  B1[0] = HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin);
+//	  if(B1[0] == 0 && B1[1] == 1)
+//	  {
+//		  CalcSt = arm_mat_trans_f32(&A, &At);
+//
+//		  CalcSt = arm_mat_mult_f32(&At, &A, &AtmA);
+//
+//		  CalcSt = arm_mat_add_f32(&A, &B, &AaB);
+//	  }
+//	  B1[1] = B1[0];
+
+
+	  static uint32_t timestamp = 0;
+	  if(timestamp < HAL_GetTick())
+	  {
+		  timestamp = HAL_GetTick()+10;
+		  Vfeedback = arm_pid_f32(&PID, setposition - position);
+		  position = PlantSimulation(Vfeedback);
+	  }
   }
   /* USER CODE END 3 */
 }
@@ -220,7 +281,17 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+float PlantSimulation(float VIn)
+{
+	static float speed = 0;
+	static float position = 0;
+	float current = VIn - speed * 0.0123;
+	float torque = current * 0.456;
+	float acc = torque * 0.789;
+	speed += acc;
+	position += speed;
+	return position;
+}
 /* USER CODE END 4 */
 
 /**
